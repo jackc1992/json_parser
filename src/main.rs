@@ -2,7 +2,7 @@ use anyhow::Result;
 use anyhow::anyhow;
 use std::{collections::HashMap, str::Chars};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum Json {
     String(String),
     Number(f64),
@@ -199,6 +199,83 @@ impl<'a> Parser<'a> {
             Some(_) => Err(anyhow!("Invalid json format.")),
             None => Ok(result),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_everything() {
+        let json_value = r#"[123.1231,"abc", {"nested": {"object": 1}}, null, false, true, "weirldly huge amount of space    ", true]"#;
+        let mut parser = Parser::new(json_value);
+        let value = parser.parse().unwrap();
+
+        let mut arr = Vec::new();
+
+        let mut inner_object = HashMap::new();
+        inner_object.insert(String::from("object"), Json::Integer(1));
+        let inner_object = Json::Object(inner_object);
+
+        let mut outer_object = HashMap::new();
+        outer_object.insert(String::from("nested"), inner_object);
+        let outer_object = Json::Object(outer_object);
+
+        arr.push(Json::Number(123.1231));
+        arr.push(Json::String("abc".into()));
+        arr.push(outer_object);
+        arr.push(Json::Null);
+        arr.push(Json::Boolean(false));
+        arr.push(Json::Boolean(true));
+        arr.push(Json::String("weirldly huge amount of space    ".into()));
+        arr.push(Json::Boolean(true));
+
+        assert_eq!(value, Json::Array(arr));
+    }
+
+    #[test]
+    fn test_everything_with_weird_spacing() {
+        let json_value = r#"[123.1231,"abc", {"nested": {"object": 1}}, null, false, true      ,           "weirldly huge amount of space    ", true  ]"#;
+        let mut parser = Parser::new(json_value);
+        let value = parser.parse().unwrap();
+
+        let mut arr = Vec::new();
+
+        let mut inner_object = HashMap::new();
+        inner_object.insert(String::from("object"), Json::Integer(1));
+        let inner_object = Json::Object(inner_object);
+
+        let mut outer_object = HashMap::new();
+        outer_object.insert(String::from("nested"), inner_object);
+        let outer_object = Json::Object(outer_object);
+
+        arr.push(Json::Number(123.1231));
+        arr.push(Json::String("abc".into()));
+        arr.push(outer_object);
+        arr.push(Json::Null);
+        arr.push(Json::Boolean(false));
+        arr.push(Json::Boolean(true));
+        arr.push(Json::String("weirldly huge amount of space    ".into()));
+        arr.push(Json::Boolean(true));
+
+        assert_eq!(value, Json::Array(arr));
+    }
+
+    #[test]
+    fn invalid_object() {
+        let json_value = r#"{"#;
+        let mut parser = Parser::new(json_value);
+        let value = parser.parse();
+        assert!(value.is_err());
+    }
+
+    #[test]
+    fn verify_that_top_level_fails_if_extra_stuff_is_there() {
+        let json_value = r#"1234 aihykuajnlsd"#;
+        let mut parser = Parser::new(json_value);
+        let value = parser.parse();
+        assert!(value.is_err());
     }
 }
 
